@@ -4,12 +4,12 @@ Tiện ích đọc các sản phẩm và mức giá đang được hiển thị 
 
 ## Cài đặt
 
-1. Tải thư mục extension từ repository này về máy (hoặc tải ZIP toàn bộ repository).
-2. Giải nén ZIP.
+1. Mở repository GitHub, chọn Code → Download ZIP.
+2. Giải nén ZIP vừa tải.
 3. Mở Chrome và truy cập chrome://extensions.
 4. Bật Developer mode / Chế độ dành cho nhà phát triển.
 5. Chọn Load unpacked / Tải tiện ích đã giải nén.
-6. Chọn thư mục extension vừa giải nén.
+6. Chọn thư mục extension nằm bên trong thư mục vừa giải nén.
 7. Mở hoặc tải lại trang Shopee.vn.
 
 ## Cách sử dụng
