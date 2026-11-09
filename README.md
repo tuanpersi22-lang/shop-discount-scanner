@@ -45,8 +45,8 @@ Có thể chạy nhanh bằng cách mở `start_windows.bat` sau khi đã cài P
 
 Khi Shopee giới hạn truy cập từ máy chủ, có thể dùng tiện ích Chrome để đọc sản phẩm đang hiển thị trong tab trình duyệt của bạn:
 
-1. Mở thư mục extension trong repository này và tải thư mục về máy.
-2. Trong Chrome, mở chrome://extensions, bật **Developer mode**, chọn **Load unpacked** và chọn thư mục extension.
+1. Mở repository GitHub, chọn **Code → Download ZIP** rồi giải nén file ZIP.
+2. Trong Chrome, mở chrome://extensions, bật **Developer mode**, chọn **Load unpacked** và chọn thư mục extension bên trong thư mục vừa giải nén.
 3. Mở hoặc tải lại trang shop/bộ sưu tập Shopee.
 4. Bấm biểu tượng **SHOP DISCOUNT SCANNER** → **Quét trang Shopee** → **Tải CSV sản phẩm**.
 5. Mở website https://shop-discount-scanner.onrender.com, tải CSV ở mục **Nhập CSV từ tiện ích Chrome**, rồi bấm **LẬP BÁO CÁO**.
