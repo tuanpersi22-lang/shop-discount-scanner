@@ -266,11 +266,14 @@ def _shopee_product_objects(payload):
                 "item_card_displayed_price", "item_card_display_asset",
                 "item_card_displayed_asset",
             )
-            for parent in list(containers):
+            index = 0
+            while index < len(containers):
+                parent = containers[index]
                 for key in nested_keys:
                     nested = parent.get(key)
                     if isinstance(nested, dict) and nested not in containers:
                         containers.append(nested)
+                index += 1
             item_id = next(
                 (
                     container.get("itemid") or container.get("item_id")
@@ -309,11 +312,14 @@ def _shopee_product_row(item, shop, base_url, collection_url):
         "item_card_displayed_price", "item_card_display_asset",
         "item_card_displayed_asset",
     )
-    for parent in list(containers):
+    index = 0
+    while index < len(containers):
+        parent = containers[index]
         for key in nested_keys:
             nested = parent.get(key)
             if isinstance(nested, dict) and nested not in containers:
                 containers.append(nested)
+        index += 1
 
     def first(keys):
         for container in containers:
