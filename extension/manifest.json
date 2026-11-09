@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "SHOP DISCOUNT SCANNER",
+  "version": "1.0.0",
+  "description": "Đọc sản phẩm và giá đang hiển thị trên Shopee, xuất CSV để lập báo cáo chiết khấu.",
+  "permissions": ["activeTab", "tabs", "downloads", "storage"],
+  "host_permissions": ["https://shopee.vn/*", "https://*.shopee.vn/*"],
+  "action": {
+    "default_title": "SHOP DISCOUNT SCANNER",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://shopee.vn/*", "https://*.shopee.vn/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
