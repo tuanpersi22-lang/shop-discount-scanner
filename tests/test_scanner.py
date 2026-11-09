@@ -55,3 +55,28 @@ def test_shopee_collection_prices_are_scaled_and_discount_is_calculated():
     assert row["Giá niêm yết"] == 100000
     assert row["Chiết khấu (%)"] == 30
     assert row["URL sản phẩm"] == "https://shopee.vn/product/456/123"
+
+
+def test_shopee_nested_item_card_uses_display_name_and_price():
+    from scanner import _shopee_product_objects, _shopee_product_row
+
+    payload = {
+        "data": {
+            "item_cards": [{
+                "item_data": {
+                    "itemid": 789,
+                    "shopid": 456,
+                    "item_card_display_price": {"price": 8000000000},
+                    "price_before_discount": 10000000000,
+                },
+                "item_card_displayed_asset": {"name": "Máy tính mẫu"},
+            }]
+        }
+    }
+    items = _shopee_product_objects(payload)
+    assert len(items) == 1
+    row = _shopee_product_row(items[0], "Shop mẫu", "https://shopee.vn", "https://shopee.vn/shop")
+    assert row["Sản phẩm"] == "Máy tính mẫu"
+    assert row["Giá bán"] == 80000
+    assert row["Giá niêm yết"] == 100000
+    assert row["Chiết khấu (%)"] == 20
