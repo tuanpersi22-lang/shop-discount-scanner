@@ -8,7 +8,8 @@ import time
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
-from urllib.parse import urldefrag, urljoin, urlparse
+from urllib.parse import parse_qs, urldefrag, urlencode, urljoin, urlparse
+import uuid
 from urllib.robotparser import RobotFileParser
 
 import requests
@@ -98,7 +99,7 @@ def _host_key(url):
     return (parsed.hostname or "").lower().removeprefix("www.")
 
 
-def _safe_get(session, url, robots=None):
+def _safe_get(session, url, robots=None, extra_headers=None):
     current = _normal_url(url)
     if not current:
         return None
@@ -114,8 +115,11 @@ def _safe_get(session, url, robots=None):
             except Exception:
                 return None
         try:
+            headers = {"User-Agent": USER_AGENT}
+            if extra_headers:
+                headers.update(extra_headers)
             response = session.get(current, timeout=TIMEOUT, allow_redirects=False,
-                                   headers={"User-Agent": USER_AGENT})
+                                   headers=headers)
         except requests.RequestException:
             return None
         if response.status_code in (301, 302, 303, 307, 308):
@@ -212,6 +216,181 @@ def _product_row(html, page_url, shop):
     }
 
 
+
+def _shopee_price(value):
+    """Shopee v4 price fields are integer amounts scaled by 100,000."""
+    amount = parse_money(value)
+    if amount is None or amount <= 0:
+        return None
+    return amount / Decimal("100000")
+
+
+def _shopee_product_objects(payload):
+    """Find product-card dictionaries across known Shopee response envelopes."""
+    found, seen = [], set()
+
+    def walk(node, depth=0):
+        if depth > 12:
+            return
+        if isinstance(node, dict):
+            item_id = node.get("itemid") or node.get("item_id")
+            containers = [node]
+            for key in (
+                "item_basic", "item_data", "item_card_display_price",
+                "item_card_displayed_price", "item_card_display_asset",
+                "item_card_displayed_asset",
+            ):
+                nested = node.get(key)
+                if isinstance(nested, dict):
+                    containers.append(nested)
+            has_price = any(
+                key in container
+                for container in containers
+                for key in (
+                    "price", "price_min", "price_before_discount",
+                    "price_min_before_discount", "current_price",
+                )
+            )
+            if item_id is not None and has_price:
+                key = str(item_id)
+                if key not in seen:
+                    seen.add(key)
+                    found.append(node)
+            for value in node.values():
+                walk(value, depth + 1)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value, depth + 1)
+
+    walk(payload)
+    return found
+
+
+def _shopee_product_row(item, shop, base_url, collection_url):
+    containers = [item]
+    for key in (
+        "item_basic", "item_data", "item_card_display_price",
+        "item_card_displayed_price", "item_card_display_asset",
+        "item_card_displayed_asset",
+    ):
+        nested = item.get(key)
+        if isinstance(nested, dict):
+            containers.append(nested)
+
+    def first(keys):
+        for container in containers:
+            for key in keys:
+                value = container.get(key)
+                if value not in (None, ""):
+                    return value
+        return None
+
+    item_id = first(("itemid", "item_id"))
+    shop_id = first(("shopid", "shop_id"))
+    name = first(("name", "title", "item_name"))
+    sale_raw = first(("price_min", "price", "current_price", "price_min_before_discount"))
+    list_raw = first(("price_min_before_discount", "price_before_discount"))
+    sale_price = _shopee_price(sale_raw)
+    list_price = _shopee_price(list_raw)
+
+    if not name:
+        name = "(Shopee chưa trả tên sản phẩm)"
+    if item_id and shop_id:
+        product_url = f"{base_url}/product/{shop_id}/{item_id}"
+    else:
+        product_url = collection_url
+
+    ratio, discount = calculate_discount(list_price, sale_price)
+    return {
+        "Shop": shop,
+        "Sản phẩm": str(name),
+        "Biến thể": "",
+        "SKU": str(first(("item_sku", "sku")) or ""),
+        "Giá niêm yết": float(list_price) if list_price is not None else None,
+        "Giá bán": float(sale_price) if sale_price is not None else None,
+        "Tỷ lệ giá bán (%)": float(ratio) if ratio is not None else None,
+        "Chiết khấu (%)": float(discount) if discount is not None else None,
+        "Tiền tệ": str(first(("currency",)) or "VND"),
+        "Trạng thái": (
+            "Thiếu giá niêm yết" if list_price is None
+            else ("Có chiết khấu" if discount is not None and discount > 0 else "Không giảm giá")
+        ),
+        "URL sản phẩm": product_url,
+        "Nguồn giá": "Shopee collection API",
+        "Thời điểm quét": datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S"),
+    }
+
+
+def _scan_shopee_collection(session, normalized_url, parsed, shop, robots, max_products):
+    query = parse_qs(parsed.query)
+    collection_id = (
+        (query.get("shopCollection") or query.get("collection_id") or [None])[0]
+    )
+    if not collection_id or not str(collection_id).isdigit():
+        return None
+
+    base_url = f"{parsed.scheme}://{parsed.netloc}"
+    params = {
+        "by": "relevancy",
+        "limit": min(max(int(max_products), 1), 50),
+        "offset": 0,
+        "order": "desc",
+        "page_type": "collection",
+        "scenario": "PAGE_COLLECTION",
+        "version": 2,
+        "view_session_id": str(uuid.uuid4()),
+        "collection_id": str(collection_id),
+        "item_order": 0,
+        "source": 3,
+    }
+    api_url = f"{base_url}/api/v4/collection/get_items?{urlencode(params)}"
+
+    if robots is not None:
+        try:
+            if not robots.can_fetch(USER_AGENT, api_url):
+                return [], [
+                    "Shopee robots.txt không cho phép bộ quét truy cập API danh sách bộ sưu tập. "
+                    "Công cụ sẽ không vượt quy tắc này."
+                ]
+        except Exception:
+            return [], ["Không xác minh được robots.txt của Shopee; đã bỏ qua yêu cầu quét."]
+
+    response = _safe_get(
+        session,
+        api_url,
+        robots,
+        extra_headers={
+            "Accept": "application/json, text/plain, */*",
+            "Referer": normalized_url,
+        },
+    )
+    if response is None:
+        return [], [
+            "Shopee không trả dữ liệu bộ sưu tập qua API công khai. Có thể máy chủ đang giới hạn "
+            "truy cập tự động hoặc yêu cầu phiên truy cập; công cụ không tìm cách vượt CAPTCHA/đăng nhập."
+        ]
+
+    try:
+        payload = response.json()
+    except ValueError:
+        return [], ["Shopee trả về dữ liệu không phải JSON cho bộ sưu tập này."]
+
+    if payload.get("error") not in (None, 0, "", False):
+        return [], [f"Shopee API báo lỗi: {payload.get('error_msg') or payload.get('error')}"]
+
+    items = _shopee_product_objects(payload)
+    rows = [
+        _shopee_product_row(item, shop, base_url, normalized_url)
+        for item in items[:min(max(int(max_products), 1), 50)]
+    ]
+    if not rows:
+        return [], [
+            "Đã gọi được API bộ sưu tập nhưng không tìm thấy dữ liệu sản phẩm trong phản hồi. "
+            "Shopee có thể đã thay đổi cấu trúc API."
+        ]
+    return rows, []
+
+
 def scan_shop(shop_url, max_products=30, max_category_pages=3, delay=1.5):
     normalized = _normal_url(shop_url)
     if not normalized:
@@ -222,6 +401,14 @@ def scan_shop(shop_url, max_products=30, max_category_pages=3, delay=1.5):
     session = requests.Session()
     robots = _get_robots(session, base_url)
     rows, errors = [], []
+
+    # Shopee collection URLs use a separate public listing endpoint.
+    if parsed.hostname and parsed.hostname.lower().endswith("shopee.vn"):
+        shopee_result = _scan_shopee_collection(
+            session, normalized, parsed, shop, robots, max_products
+        )
+        if shopee_result is not None:
+            return shopee_result
 
     # Shopify public catalogue endpoint.
     response = _safe_get(session, urljoin(base_url, "/products.json?limit=50"), robots)
