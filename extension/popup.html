@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SHOP DISCOUNT SCANNER</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main>
+    <div class="brand">🛍️ SHOP DISCOUNT SCANNER</div>
+    <p class="intro">Quét sản phẩm đang hiển thị trên Shopee bằng phiên trình duyệt của bạn.</p>
+    <div id="status" class="status">Đang kiểm tra trang hiện tại…</div>
+    <div id="count" class="count">Chưa có dữ liệu quét.</div>
+    <button id="scan" class="primary">🔎 Quét trang Shopee</button>
+    <button id="download" disabled>⬇️ Tải CSV sản phẩm</button>
+    <button id="open" class="secondary">Mở SHOP DISCOUNT SCANNER</button>
+    <p class="hint">Mẹo: cuộn xuống để Shopee tải thêm sản phẩm. Tiện ích sẽ tự cuộn trang trong giới hạn an toàn rồi thu thập tối đa 300 sản phẩm.</p>
+    <p class="hint">Sau khi tải CSV, mở website và tải file ở mục “Nhập CSV từ tiện ích Chrome”.</p>
+    <p class="privacy">Chỉ đọc nội dung trang Shopee đang mở. Không gửi dữ liệu sang máy chủ tiện ích.</p>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>
