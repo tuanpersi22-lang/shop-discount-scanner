@@ -4,6 +4,7 @@ import pandas as pd
 import streamlit as st
 
 from scanner import scan_shop
+from chrome_import import load_chrome_export
 
 st.set_page_config(
     page_title="Shop Discount Scanner",
@@ -36,7 +37,8 @@ urls_text = st.text_area(
     ),
 )
 
-uploaded = st.file_uploader("Hoặc tải lên file TXT/CSV chứa danh sách URL", type=["txt", "csv"])
+uploaded = st.file_uploader("Hoặc tải lên file TXT/CSV chứa danh sách URL", type=["txt", "csv"], key="url_file")
+uploaded_text = ""
 if uploaded is not None:
     try:
         uploaded_text = uploaded.getvalue().decode("utf-8-sig")
@@ -44,6 +46,14 @@ if uploaded is not None:
     except Exception:
         uploaded_text = ""
         st.warning("Không đọc được file. Hãy dùng UTF-8.")
+
+st.markdown("**Hoặc nhập dữ liệu sản phẩm đã quét bằng tiện ích Chrome**")
+chrome_export = st.file_uploader(
+    "Tải CSV sản phẩm từ tiện ích SHOP DISCOUNT SCANNER",
+    type=["csv"],
+    key="chrome_export",
+    help="Trong Chrome: mở Shopee → bấm tiện ích → Quét trang Shopee → Tải CSV sản phẩm."
+)
 
 col_a, col_b, col_c = st.columns(3)
 with col_a:
@@ -73,16 +83,28 @@ def extract_urls(*texts):
 
 
 if run:
-    urls = extract_urls(urls_text, uploaded_text if uploaded is not None else "")
-    if not urls:
-        st.warning("Bạn cần nhập ít nhất một URL shop.")
+    urls = extract_urls(urls_text, uploaded_text)
+    chrome_rows = []
+    chrome_error = None
+    if chrome_export is not None:
+        try:
+            chrome_rows = load_chrome_export(chrome_export.getvalue())
+        except ValueError as exc:
+            chrome_error = str(exc)
+
+    if chrome_error:
+        st.error(chrome_error)
+    elif not urls and not chrome_rows:
+        st.warning("Bạn cần nhập URL shop hoặc tải CSV sản phẩm từ tiện ích Chrome.")
     elif len(urls) > 5:
         st.error(f"Mỗi lượt chỉ quét tối đa 5 shop. Bạn đang nhập {len(urls)} URL; hãy chia thành nhiều lượt.")
     else:
-        all_rows = []
+        all_rows = list(chrome_rows)
         all_errors = []
         progress = st.progress(0)
         status = st.empty()
+        if chrome_rows:
+            status.write(f"Đã nhập {len(chrome_rows)} sản phẩm từ tiện ích Chrome.")
 
         for index, shop_url in enumerate(urls, start=1):
             status.write(f"Đang quét shop {index}/{len(urls)}: {shop_url}")
