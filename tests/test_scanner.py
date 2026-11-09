@@ -119,3 +119,71 @@ def test_shopee_collection_queries_collection_id_without_resolving_shop_id():
     requested_url = mocked_get.call_args.args[1]
     assert "/api/v4/collection/get_items?" in requested_url
     assert "collection_id=261476905" in requested_url
+
+
+def test_shopee_shop_card_discount_is_used_when_list_price_is_not_in_card():
+    from scanner import _shopee_product_objects, _shopee_product_row
+
+    payload = {
+        "data": {
+            "items": [{
+                "itemid": 123,
+                "shopid": 456,
+                "item_data": {
+                    "item_card_display_price": {
+                        "price": 7000000000,
+                        "discount": 30,
+                    }
+                },
+                "item_card_displayed_asset": {"name": "Sách mẫu"},
+            }]
+        }
+    }
+    items = _shopee_product_objects(payload)
+    assert len(items) == 1
+    row = _shopee_product_row(items[0], "MCBOOKS", "https://shopee.vn", "https://shopee.vn/mcbookssaigon")
+    assert row["Sản phẩm"] == "Sách mẫu"
+    assert row["Giá bán"] == 70000
+    assert row["Giá niêm yết"] == 100000
+    assert row["Chiết khấu (%)"] == 30
+
+
+def test_shopee_shop_home_resolves_username_then_searches_shop_items():
+    from scanner import _scan_shopee_shop
+    from urllib.parse import urlparse
+    from unittest.mock import Mock, patch
+
+    class FakeResponse:
+        def __init__(self, payload):
+            self.payload = payload
+
+        def json(self):
+            return self.payload
+
+    url = "https://shopee.vn/mcbookssaigon"
+    detail_response = FakeResponse({"data": {"shopid": 456, "name": "MCBOOKS"}})
+    items_response = FakeResponse({
+        "data": {
+            "items": [{
+                "itemid": 123,
+                "shopid": 456,
+                "item_data": {
+                    "item_card_display_price": {"price": 7000000000, "discount": 30}
+                },
+                "item_card_displayed_asset": {"name": "Sách mẫu"},
+            }]
+        }
+    })
+    with patch("scanner._safe_post", return_value=detail_response) as mocked_post, \
+         patch("scanner._safe_get", return_value=items_response) as mocked_get:
+        rows, errors = _scan_shopee_shop(
+            Mock(), url, urlparse(url), "shopee.vn", None, 30
+        )
+
+    assert errors == []
+    assert len(rows) == 1
+    assert rows[0]["Shop"] == "MCBOOKS"
+    assert rows[0]["Chiết khấu (%)"] == 30
+    assert "get_shop_base_v2" in mocked_post.call_args.args[1]
+    assert "/api/v4/search/search_items?" in mocked_get.call_args.args[1]
+    assert "match_id=456" in mocked_get.call_args.args[1]
