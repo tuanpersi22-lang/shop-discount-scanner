@@ -1,5 +1,5 @@
 from decimal import Decimal
-from scanner import calculate_discount, parse_money, _normal_url
+from scanner import calculate_discount, parse_money, _normal_url, _public_host
 
 
 def test_parse_vietnamese_thousands():
@@ -22,7 +22,7 @@ def test_missing_list_price():
     assert discount is None
 
 
-def test_reject_private_and_nonstandard_urls():
-    assert _normal_url("http://127.0.0.1") is not None  # DNS/IP filtering happens before requests
+def test_reject_private_and_nonstandard_hosts():
+    assert _public_host("127.0.0.1") is False
     assert _normal_url("http://example.com:8080") is None
     assert _normal_url("file:///etc/passwd") is None
