@@ -183,15 +183,18 @@
     const originalY = window.scrollY;
     const rowsByUrl = new Map();
     let previousHeight = 0;
+    let previousCount = 0;
     let stablePasses = 0;
 
     for (let pass = 0; pass < 18; pass += 1) {
       for (const row of collectRows()) rowsByUrl.set(row["URL sản phẩm"], row);
       const height = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
-      if (height === previousHeight) stablePasses += 1;
+      const count = rowsByUrl.size;
+      if (height === previousHeight && count === previousCount) stablePasses += 1;
       else stablePasses = 0;
-      if (stablePasses >= 2 || rowsByUrl.size >= MAX_PRODUCTS) break;
+      if (stablePasses >= 3 || count >= MAX_PRODUCTS) break;
       previousHeight = height;
+      previousCount = count;
       window.scrollTo(0, height);
       await sleep(350);
     }
