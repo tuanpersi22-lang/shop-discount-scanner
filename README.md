@@ -40,6 +40,19 @@ Có thể chạy nhanh bằng cách mở `start_windows.bat` sau khi đã cài P
 - Một số website WooCommerce/HTML có giá trong các thẻ phổ biến như `del`, `ins`, `price`, `sale-price`, `compare-at-price`.
 - Trang danh mục có liên kết sản phẩm theo các đường dẫn phổ biến như `/product/`, `/products/`, `/item/`.
 
+
+## Dùng tiện ích Chrome để quét Shopee
+
+Khi Shopee giới hạn truy cập từ máy chủ, có thể dùng tiện ích Chrome để đọc sản phẩm đang hiển thị trong tab trình duyệt của bạn:
+
+1. Mở thư mục extension trong repository này và tải thư mục về máy.
+2. Trong Chrome, mở chrome://extensions, bật **Developer mode**, chọn **Load unpacked** và chọn thư mục extension.
+3. Mở hoặc tải lại trang shop/bộ sưu tập Shopee.
+4. Bấm biểu tượng **SHOP DISCOUNT SCANNER** → **Quét trang Shopee** → **Tải CSV sản phẩm**.
+5. Mở website https://shop-discount-scanner.onrender.com, tải CSV ở mục **Nhập CSV từ tiện ích Chrome**, rồi bấm **LẬP BÁO CÁO**.
+
+Tiện ích đọc DOM đang hiển thị trên trang, có thể tự cuộn tối đa 18 lượt và thu thập tối đa 300 sản phẩm. File CSV được tạo cục bộ trên máy. Tiện ích không gửi dữ liệu sang máy chủ tiện ích, không gọi API riêng và không vượt CAPTCHA. Giá niêm yết chỉ được ghi khi thấy giá gạch ngang/giá gốc hoặc nhãn giảm giá rõ ràng; nếu không, báo cáo giữ trạng thái **Thiếu giá niêm yết**.
+
 ## Giới hạn quan trọng
 
 - Đây là bản nền tảng đa shop, không thể cam kết đọc chính xác 100% mọi website.
