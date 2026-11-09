@@ -521,7 +521,7 @@ def scan_shop(shop_url, max_products=30, max_category_pages=3, delay=1.5):
     rows, errors = [], []
 
     # Shopee collection URLs use a separate public listing endpoint.
-    if parsed.hostname and parsed.hostname.lower().endswith("shopee.vn"):
+    if parsed.hostname and (parsed.hostname.lower() == "shopee.vn" or parsed.hostname.lower().endswith(".shopee.vn")):
         shopee_result = _scan_shopee_collection(
             session, normalized, parsed, shop, robots, max_products
         )
