@@ -341,7 +341,24 @@ def _shopee_product_row(item, shop, base_url, collection_url):
     shop_id = first(("shopid", "shop_id"))
     name = first(("name", "title", "item_name"))
     sale_price = first_price(("price_min", "price", "current_price"))
-    list_price = first_price(("price_min_before_discount", "price_before_discount"))
+    list_price = first_price((
+        "price_min_before_discount", "price_before_discount",
+        "original_price", "price_max_before_discount",
+    ))
+    discount_raw = first(("discount", "show_discount", "raw_discount"))
+    discount_value = parse_money(discount_raw)
+    if discount_value is not None and Decimal("0") < discount_value < Decimal("1"):
+        discount_value *= Decimal("100")
+    # Shopee's public product-card API exposes the current price and an
+    # explicit discount percentage on some cards, but omits the crossed-out
+    # list price. Derive the list price only from that explicit API discount.
+    if (
+        list_price is None
+        and sale_price is not None
+        and discount_value is not None
+        and Decimal("0") < discount_value < Decimal("100")
+    ):
+        list_price = sale_price / (Decimal("1") - discount_value / Decimal("100"))
 
     if not name:
         name = "(Shopee chưa trả tên sản phẩm)"
@@ -366,7 +383,7 @@ def _shopee_product_row(item, shop, base_url, collection_url):
             else ("Có chiết khấu" if discount is not None and discount > 0 else "Không giảm giá")
         ),
         "URL sản phẩm": product_url,
-        "Nguồn giá": "Shopee collection API",
+        "Nguồn giá": "Shopee public API",
         "Thời điểm quét": datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S"),
     }
 
@@ -447,6 +464,107 @@ def _scan_shopee_collection(session, normalized_url, parsed, shop, robots, max_p
         ]
     return rows, []
 
+def _scan_shopee_shop(session, normalized_url, parsed, shop, robots, max_products):
+    """Scan a public Shopee shop URL when no collection ID is supplied."""
+    path_parts = [part for part in parsed.path.split("/") if part]
+    if not path_parts:
+        return None
+
+    if path_parts[0].lower() == "shop" and len(path_parts) > 1 and path_parts[1].isdigit():
+        shop_id = path_parts[1]
+        shop_name = f"shop-{shop_id}"
+    elif path_parts[0].isdigit():
+        shop_id = path_parts[0]
+        shop_name = shop_id
+    else:
+        shop_name = path_parts[0]
+        detail_url = f"{parsed.scheme}://{parsed.netloc}/api/v4/shop/get_shop_base_v2"
+        detail_response = _safe_post(
+            session,
+            detail_url,
+            {
+                "request_source": "mobile_shop_home_page",
+                "livestream_params": {},
+                "username": shop_name,
+            },
+            robots,
+            extra_headers={
+                "Referer": normalized_url,
+                "X-Requested-With": "XMLHttpRequest",
+            },
+        )
+        if detail_response is None:
+            return [], [
+                "Không lấy được mã gian hàng từ Shopee. Hãy dùng link bộ sưu tập có "
+                "shopCollection=... hoặc thử lại sau; Shopee có thể đang giới hạn API."
+            ]
+        try:
+            detail_payload = detail_response.json()
+        except ValueError:
+            return [], ["Shopee trả dữ liệu hồ sơ shop không phải JSON."]
+        detail_data = detail_payload.get("data") or {}
+        shop_id = str(detail_data.get("shopid") or detail_data.get("shop_id") or "")
+        shop_name = detail_data.get("name") or shop_name
+        if not shop_id.isdigit():
+            return [], [
+                "Shopee không trả mã gian hàng hợp lệ cho tên shop này. "
+                "Hãy kiểm tra lại URL shop."
+            ]
+
+    limit = min(max(int(max_products), 1), 50)
+    params = {
+        "by": "pop",
+        "limit": limit,
+        "match_id": shop_id,
+        "newest": 0,
+        "order": "desc",
+        "page_type": "shop",
+        "scenario": "PAGE_SHOP_SEARCH",
+        "version": 2,
+    }
+    api_url = f"{parsed.scheme}://{parsed.netloc}/api/v4/search/search_items?{urlencode(params)}"
+    if robots is not None:
+        try:
+            if not robots.can_fetch(USER_AGENT, api_url):
+                return [], ["robots.txt không cho phép truy cập danh sách sản phẩm Shopee; đã bỏ qua yêu cầu."]
+        except Exception:
+            return [], ["Không xác minh được robots.txt của Shopee; đã bỏ qua yêu cầu quét."]
+
+    response = _safe_get(
+        session,
+        api_url,
+        robots,
+        extra_headers={
+            "Accept": "application/json, text/plain, */*",
+            "Referer": normalized_url,
+            "X-Requested-With": "XMLHttpRequest",
+        },
+    )
+    if response is None:
+        return [], [
+            "Shopee không trả dữ liệu danh sách sản phẩm của shop. "
+            "Máy chủ có thể giới hạn truy cập tự động hoặc yêu cầu phiên truy cập."
+        ]
+    try:
+        payload = response.json()
+    except ValueError:
+        return [], ["Shopee trả dữ liệu danh sách sản phẩm không phải JSON."]
+    if isinstance(payload, dict) and payload.get("error") not in (None, 0, "", False):
+        return [], [f"Shopee API báo lỗi: {payload.get('error_msg') or payload.get('error')}"]
+
+    items = _shopee_product_objects(payload)
+    rows = [
+        _shopee_product_row(item, shop_name, f"{parsed.scheme}://{parsed.netloc}", normalized_url)
+        for item in items[:limit]
+    ]
+    if not rows:
+        return [], [
+            "Shopee có phản hồi nhưng không trả danh sách sản phẩm có giá cho shop này. "
+            "Có thể shop trống, API đã thay đổi hoặc Shopee giới hạn truy cập tự động."
+        ]
+    return rows, []
+
+
 def scan_shop(shop_url, max_products=30, max_category_pages=3, delay=1.5):
     normalized = _normal_url(shop_url)
     if not normalized:
@@ -458,9 +576,17 @@ def scan_shop(shop_url, max_products=30, max_category_pages=3, delay=1.5):
     robots = _get_robots(session, base_url)
     rows, errors = [], []
 
-    # Shopee collection URLs use a separate public listing endpoint.
-    if parsed.hostname and (parsed.hostname.lower() == "shopee.vn" or parsed.hostname.lower().endswith(".shopee.vn")):
+    # Shopee has separate public listing APIs for collections and shop home pages.
+    if parsed.hostname and (
+        parsed.hostname.lower() == "shopee.vn"
+        or parsed.hostname.lower().endswith(".shopee.vn")
+    ):
         shopee_result = _scan_shopee_collection(
+            session, normalized, parsed, shop, robots, max_products
+        )
+        if shopee_result is not None:
+            return shopee_result
+        shopee_result = _scan_shopee_shop(
             session, normalized, parsed, shop, robots, max_products
         )
         if shopee_result is not None:
