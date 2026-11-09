@@ -58,4 +58,6 @@ def load_chrome_export(file_bytes):
     frame.loc[has_list & frame["Chiết khấu (%)"].le(0), "Trạng thái"] = "Không giảm giá"
     frame["Nguồn giá"] = frame["Nguồn giá"].fillna("Chrome extension (Shopee DOM)")
     frame["Tiền tệ"] = frame["Tiền tệ"].fillna("VND")
-    return frame[COLUMNS].where(pd.notna(frame[COLUMNS]), None).to_dict(orient="records")
+    normalized = frame[COLUMNS].astype(object)
+    normalized = normalized.where(pd.notna(normalized), None)
+    return normalized.to_dict(orient="records")
