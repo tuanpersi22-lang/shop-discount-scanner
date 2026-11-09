@@ -101,7 +101,7 @@ if run:
     else:
         all_rows = list(chrome_rows)
         all_errors = []
-        progress = st.progress(0)
+        progress = st.progress(0) if urls else None
         status = st.empty()
         if chrome_rows:
             status.write(f"Đã nhập {len(chrome_rows)} sản phẩm từ tiện ích Chrome.")
@@ -120,7 +120,8 @@ if run:
                     all_errors.append({"Shop URL": shop_url, "Lỗi/Ghi chú": error})
             except Exception as exc:
                 all_errors.append({"Shop URL": shop_url, "Lỗi/Ghi chú": f"Lỗi ngoài dự kiến: {exc}"})
-            progress.progress(index / len(urls))
+            if progress is not None:
+                progress.progress(index / len(urls))
 
         status.write("Hoàn tất quét.")
         st.session_state["discount_rows"] = all_rows
