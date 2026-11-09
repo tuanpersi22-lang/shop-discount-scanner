@@ -1,4 +1,6 @@
 from decimal import Decimal
+from unittest.mock import Mock, patch
+from urllib.parse import urlparse
 from scanner import calculate_discount, parse_money, _normal_url, _public_host
 
 
@@ -80,3 +82,40 @@ def test_shopee_nested_item_card_uses_display_name_and_price():
     assert row["Giá bán"] == 80000
     assert row["Giá niêm yết"] == 100000
     assert row["Chiết khấu (%)"] == 20
+
+
+def test_shopee_collection_queries_collection_id_without_resolving_shop_id():
+    from scanner import _scan_shopee_collection
+
+    class FakeResponse:
+        def json(self):
+            return {
+                "data": {
+                    "items": [{
+                        "itemid": 123,
+                        "shopid": 456,
+                        "name": "Sách mẫu",
+                        "price": 7000000000,
+                        "price_before_discount": 10000000000,
+                    }]
+                }
+            }
+
+    url = "https://shopee.vn/mcbookssaigon?shopCollection=261476905#product_list"
+    with patch("scanner._safe_get", return_value=FakeResponse()) as mocked_get:
+        rows, errors = _scan_shopee_collection(
+            Mock(),
+            url,
+            urlparse(url),
+            "shopee.vn",
+            None,
+            50,
+        )
+
+    assert errors == []
+    assert len(rows) == 1
+    assert rows[0]["Sản phẩm"] == "Sách mẫu"
+    assert rows[0]["Chiết khấu (%)"] == 30
+    requested_url = mocked_get.call_args.args[1]
+    assert "/api/v4/collection/get_items?" in requested_url
+    assert "collection_id=261476905" in requested_url
