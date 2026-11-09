@@ -26,3 +26,32 @@ def test_reject_private_and_nonstandard_hosts():
     assert _public_host("127.0.0.1") is False
     assert _normal_url("http://example.com:8080") is None
     assert _normal_url("file:///etc/passwd") is None
+
+
+def test_shopee_collection_prices_are_scaled_and_discount_is_calculated():
+    from scanner import _shopee_product_objects, _shopee_product_row
+
+    payload = {
+        "data": {
+            "items": [{
+                "itemid": 123,
+                "shopid": 456,
+                "name": "Laptop mẫu",
+                "price": 7000000000,
+                "price_before_discount": 10000000000,
+            }]
+        }
+    }
+    items = _shopee_product_objects(payload)
+    assert len(items) == 1
+
+    row = _shopee_product_row(
+        items[0],
+        "shopee.vn",
+        "https://shopee.vn",
+        "https://shopee.vn/shop?shopCollection=999",
+    )
+    assert row["Giá bán"] == 70000
+    assert row["Giá niêm yết"] == 100000
+    assert row["Chiết khấu (%)"] == 30
+    assert row["URL sản phẩm"] == "https://shopee.vn/product/456/123"
