@@ -260,16 +260,25 @@ def _shopee_product_objects(payload):
         if depth > 12:
             return
         if isinstance(node, dict):
-            item_id = node.get("itemid") or node.get("item_id")
             containers = [node]
-            for key in (
+            nested_keys = (
                 "item_basic", "item_data", "item_card_display_price",
                 "item_card_displayed_price", "item_card_display_asset",
                 "item_card_displayed_asset",
-            ):
-                nested = node.get(key)
-                if isinstance(nested, dict):
-                    containers.append(nested)
+            )
+            for parent in list(containers):
+                for key in nested_keys:
+                    nested = parent.get(key)
+                    if isinstance(nested, dict) and nested not in containers:
+                        containers.append(nested)
+            item_id = next(
+                (
+                    container.get("itemid") or container.get("item_id")
+                    for container in containers
+                    if container.get("itemid") is not None or container.get("item_id") is not None
+                ),
+                None,
+            )
             has_price = any(
                 key in container
                 for container in containers
