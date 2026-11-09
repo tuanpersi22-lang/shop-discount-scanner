@@ -35,6 +35,7 @@ Có thể chạy nhanh bằng cách mở `start_windows.bat` sau khi đã cài P
 ## Loại website được hỗ trợ
 
 - Shopify: thử đọc catalogue công khai qua `/products.json`.
+- Shopee: hỗ trợ thử đọc URL bộ sưu tập trong shop có tham số `shopCollection`, thông qua endpoint danh sách công khai của Shopee khi `robots.txt` cho phép.
 - Website có dữ liệu Product JSON-LD.
 - Một số website WooCommerce/HTML có giá trong các thẻ phổ biến như `del`, `ins`, `price`, `sale-price`, `compare-at-price`.
 - Trang danh mục có liên kết sản phẩm theo các đường dẫn phổ biến như `/product/`, `/products/`, `/item/`.
@@ -43,7 +44,7 @@ Có thể chạy nhanh bằng cách mở `start_windows.bat` sau khi đã cài P
 
 - Đây là bản nền tảng đa shop, không thể cam kết đọc chính xác 100% mọi website.
 - Nên nhập URL trang danh mục/collection sản phẩm; nhập trang chủ vẫn có thể không tìm thấy danh sách sản phẩm ở một số shop.
-- Website tải dữ liệu bằng JavaScript, yêu cầu đăng nhập, CAPTCHA, chặn bot hoặc có API riêng có thể cần adapter riêng.
+- Website tải dữ liệu bằng JavaScript, yêu cầu đăng nhập, CAPTCHA, chặn bot hoặc có API riêng có thể cần adapter riêng. Riêng Shopee có thể thay đổi API hoặc giới hạn truy cập tự động; bộ quét không vượt CAPTCHA, đăng nhập hay quy tắc `robots.txt`.
 - Công cụ tôn trọng `robots.txt`, có thời gian nghỉ giữa các request, chỉ truy cập host công khai và không đi theo redirect sang host khác.
 - Công cụ không tìm cách vượt đăng nhập/CAPTCHA hoặc truy cập mạng nội bộ/private IP.
 - Chỉ lấy dữ liệu giá công khai tại thời điểm chạy; giá/khuyến mại có thể thay đổi theo tài khoản, khu vực, mã giảm giá, số lượng hoặc phương thức thanh toán.
